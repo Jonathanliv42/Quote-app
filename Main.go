@@ -8,6 +8,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
+// Quote struct to hold the citation data
 type Quote struct {
 	Text   string   `json:"text"`
 	Author string   `json:"author"`
@@ -15,81 +16,82 @@ type Quote struct {
 }
 
 func main() {
+	// Handle the HTTP requests for the "/quotes" endpoint
 	http.HandleFunc("/quotes", func(w http.ResponseWriter, r *http.Request) {
-		citations := scrapeQuotes(100) // Récupérer exactement 100 citations
+		citations := scrapeQuotes(100) // Retrieve exactly 100 quotes
 
-		// Retourner les citations en format JSON
+		// Return the quotes in JSON format
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(citations)
 	})
 
+	// Start the HTTP server on port 8080
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
-// Fonction de scraping des citations
+// Function to scrape quotes from the website
 func scrapeQuotes(limit int) []Quote {
 	var quotes []Quote
 	page := 1
 	url := "https://quotes.toscrape.com/page/%d/"
 
-	// Scraper les pages jusqu'à ce que nous ayons 100 citations
+	// Scrape pages until we have 100 quotes
 	for {
-		// Construire l'URL pour la page actuelle
+		// Build the URL for the current page
 		currentURL := fmt.Sprintf(url, page)
 		fmt.Printf("Scraping page %d: %s\n", page, currentURL)
 
-		// Récupérer le contenu de la page
+		// Retrieve the page content
 		res, err := http.Get(currentURL)
 		if err != nil {
 			log.Fatal(err)
 		}
 		defer res.Body.Close()
 
-		// Vérifier que la page a été récupérée avec succès
+		// Check if the page was retrieved successfully
 		if res.StatusCode != 200 {
-			break // Si la page n'existe pas, sortir de la boucle
+			break // Exit the loop if the page does not exist
 		}
 
-		// Parser la page avec goquery
+		// Parse the page with goquery
 		doc, err := goquery.NewDocumentFromReader(res.Body)
 		if err != nil {
 			log.Fatal(err)
 		}
 
-		// Récupérer les citations de la page
+		// Retrieve quotes from the page
 		doc.Find(".quote").Each(func(i int, s *goquery.Selection) {
 			quoteText := s.Find(".text").Text()
 			author := s.Find(".author").Text()
 			var tags []string
 
-			// Récupérer les tags pour chaque citation
+			// Retrieve tags for each quote
 			s.Find(".tags .tag").Each(func(i int, tag *goquery.Selection) {
 				tags = append(tags, tag.Text())
 			})
 
-			// Ajouter la citation, l'auteur et les tags à la liste
+			// Add the quote, author, and tags to the list
 			quotes = append(quotes, Quote{Text: quoteText, Author: author, Tags: tags})
 		})
 
-		// Vérifier si on a atteint la limite de 100 citations
+		// Check if we've reached the limit of 100 quotes
 		if len(quotes) >= limit {
 			break
 		}
 
-		// Passer à la page suivante
+		// Move to the next page
 		page++
 
-		// Si on atteint la dernière page (vérifier l'absence du bouton "Next"), arrêter
+		// If the "Next" button is missing, stop scraping
 		if doc.Find(".next").Length() == 0 {
 			break
 		}
 	}
 
-	// Limiter les citations à 100 si plus de 100 ont été récupérées
+	// Limit the number of quotes to 100 if more than 100 have been retrieved
 	if len(quotes) > limit {
 		quotes = quotes[:limit]
 	}
 
-	
 	return quotes
 }
